@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Nexa Crash — крипто мини-игра</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #07090f;
+    --glass: rgba(255,255,255,.045);
+    --glass2: rgba(255,255,255,.08);
+    --line: rgba(255,255,255,.07);
+    --text: #eef2fa;
+    --muted: #8b96b3;
+    --green: #2ce8a5;
+    --green2: #0ea5e9;
+    --red: #ff4d6a;
+    --gold: #ffb638;
+    --gold2: #ff7a18;
+    --r: 18px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(44,232,165,.10), transparent 60%),
+      radial-gradient(100% 50% at 100% 100%, rgba(139,92,246,.12), transparent 60%),
+      radial-gradient(90% 40% at 0% 90%, rgba(14,165,233,.08), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', Roboto, sans-serif;
+    display: flex; flex-direction: column;
+    min-height: 100vh; overflow-x: hidden;
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px 10px;
+    padding-top: calc(12px + env(safe-area-inset-top));
+    background: rgba(7,9,15,.72);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--line);
+  }
+  .logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 17px; letter-spacing: .4px; }
+  .logo-badge {
+    width: 28px; height: 28px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--green), var(--green2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; box-shadow: 0 2px 14px rgba(44,232,165,.45);
+  }
+  .balance-box {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--glass); border: 1px solid var(--line);
+    border-radius: 14px; padding: 7px 10px 7px 12px;
+  }
+  .balance-box .coin {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #ffd873, #d98a00);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; box-shadow: 0 0 10px rgba(255,182,56,.5);
+  }
+  #balance { font-weight: 800; font-variant-numeric: tabular-nums; font-size: 15px; }
+  #faucet {
+    background: var(--glass2); border: none; color: var(--green);
+    border-radius: 9px; padding: 5px 9px; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  #faucet:disabled { color: var(--muted); opacity: .6; }
+  #greeting { padding: 10px 16px 0; color: var(--muted); font-size: 11.5px; }
+
+  /* ---------- Games ---------- */
+  .game { display: none; padding: 12px 16px 8px; flex: 1; animation: fadein .25s ease; }
+  .game.active { display: block; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .card {
+    background: var(--glass); border: 1px solid var(--line);
+    border-radius: var(--r); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+
+  /* ---------- Crash ---------- */
+  #crash-stage {
+    position: relative; height: 305px; overflow: hidden; margin-bottom: 10px;
+    border-radius: var(--r); border: 1px solid var(--line);
+    background:
+      radial-gradient(90% 70% at 50% 0%, rgba(44,232,165,.06), transparent),
+      rgba(255,255,255,.02);
+  }
+  #crash-canvas { width: 100%; height: 100%; display: block; }
+  #multiplier {
+    position: absolute; top: 46%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 48px; font-weight: 800; font-variant-numeric: tabular-nums;
+    letter-spacing: -1px; transition: color .12s; pointer-events: none;
+  }
+  #multiplier.fly { color: var(--green); text-shadow: 0 0 34px rgba(44,232,165,.55); }
+  #multiplier.dead { color: var(--red); text-shadow: 0 0 34px rgba(255,77,106,.55); animation: shake .35s; }
+  @keyframes shake {
+    0%,100% { transform: translate(-50%,-50%); }
+    25% { transform: translate(-54%,-50%); } 75% { transform: translate(-46%,-50%); }
+  }
+  #crash-status {
+    position: absolute; top: 14px; left: 0; right: 0; text-align: center;
+    font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;
+  }
+  #float-win {
+    position: absolute; top: 34%; left: 50%; transform: translateX(-50%);
+    font-size: 19px; font-weight: 800; opacity: 0; pointer-events: none;
+  }
+  #float-win.show { animation: floatUp 1.3s ease forwards; }
+  @keyframes floatUp {
+    0% { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    18% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-34px); }
+  }
+  #history { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; padding: 1px; scrollbar-width: none; }
+  #history::-webkit-scrollbar { display: none; }
+  .chip {
+    flex-shrink: 0; padding: 5px 11px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    font-variant-numeric: tabular-nums; background: var(--glass);
+  }
+  .chip.lo { color: #ff8ba0; border: 1px solid rgba(255,77,106,.25); }
+  .chip.mid { color: var(--gold); border: 1px solid rgba(255,182,56,.25); }
+  .chip.hi { color: var(--green); border: 1px solid rgba(44,232,165,.25); }
+
+  .panel { padding: 14px; }
+  .row { display: flex; gap: 9px; margin-bottom: 11px; }
+  .field {
+    flex: 1; background: rgba(0,0,0,.28); border: 1px solid var(--line);
+    border-radius: 13px; padding: 9px 12px 8px;
+  }
+  .field:focus-within { border-color: rgba(44,232,165,.4); }
+  .field label { display: block; font-size: 10.5px; color: var(--muted); margin-bottom: 2px; font-weight: 600; letter-spacing: .3px; }
+  .field input {
+    width: 100%; background: none; border: none; outline: none; color: var(--text);
+    font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  .stepper { display: flex; gap: 7px; }
+  .stepper button {
+    width: 34px; border-radius: 13px; border: 1px solid var(--line);
+    background: var(--glass2); color: var(--text); font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .stepper button:active { background: rgba(255,255,255,.16); }
+
+  .btn {
+    width: 100%; padding: 16px 0; border: none; border-radius: 15px;
+    font-size: 16.5px; font-weight: 800; letter-spacing: .3px; cursor: pointer;
+    transition: transform .12s ease, filter .2s; position: relative; overflow: hidden;
+  }
+  .btn:active { transform: scale(.975); }
+  .btn:disabled { filter: saturate(.3) brightness(.7); cursor: default; }
+  .btn-play { background: linear-gradient(135deg, #2ce8a5, #0ea5e9); color: #04131a; box-shadow: 0 6px 26px rgba(44,232,165,.35); }
+  .btn-cash { background: linear-gradient(135deg, var(--gold), var(--gold2)); color: #241202; box-shadow: 0 6px 26px rgba(255,150,40,.4); }
+  .btn-ghost { background: var(--glass2); color: var(--text); box-shadow: none; }
+
+  .quick { display: flex; gap: 8px; margin-top: 12px; }
+  .quick button {
+    flex: 1; background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 11px; padding: 9px 0; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  }
+  .quick button:active { color: var(--text); border-color: rgba(255,255,255,.2); }
+  .fair-note { margin: 14px 2px 4px; font-size: 11px; color: var(--muted); line-height: 1.55; }
+  .fair-note b { color: var(--text); }
+  .fair-note code { color: var(--gold); font-size: 10px; word-break: break-all; }
+
+  /* ---------- Coin flip ---------- */
+  .coin-scene { perspective: 700px; height: 220px; display: flex; align-items: center; justify-content: center; }
+  #flip-coin {
+    position: relative; width: 140px; height: 140px; border-radius: 50%;
+    transform-style: preserve-3d; transition: transform .12s linear;
+  }
+  .face {
+    position: absolute; inset: 0; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    backface-visibility: hidden; font-size: 46px; font-weight: 800;
+  }
+  .face.btc {
+    background: radial-gradient(circle at 32% 28%, #ffce6b, #e07f00);
+    color: #3d2200; box-shadow: 0 12px 44px rgba(224,127,0,.45), inset 0 0 0 6px rgba(255,255,255,.22);
+  }
+  .face.eth {
+    transform: rotateY(180deg);
+    background: radial-gradient(circle at 32% 28%, #b9a6ff, #5b3fd6);
+    color: #150a3d; box-shadow: 0 12px 44px rgba(122,90,246,.45), inset 0 0 0 6px rgba(255,255,255,.22);
+  }
+  .face small { font-size: 13px; font-weight: 800; letter-spacing: 1px; }
+  #flip-result { text-align: center; font-size: 14.5px; font-weight: 700; height: 22px; margin: 2px 0 12px; }
+  .side-pick { display: flex; gap: 9px; margin-bottom: 12px; }
+  .side-pick button {
+    flex: 1; padding: 13px 0; border-radius: 15px; border: 1px solid var(--line);
+    background: var(--glass); color: var(--muted); font-size: 18px; font-weight: 700; cursor: pointer; transition: all .15s;
+  }
+  .side-pick button.sel-btc { border-color: #ffce6b; color: #ffce6b; background: rgba(255,182,56,.09); box-shadow: 0 0 22px rgba(255,182,56,.18); }
+  .side-pick button.sel-eth { border-color: #b9a6ff; color: #b9a6ff; background: rgba(139,92,246,.09); box-shadow: 0 0 22px rgba(139,92,246,.18); }
+
+  /* ---------- Dice ---------- */
+  #dice-roll { text-align: center; margin: 14px 0 4px; }
+  #dice-num { font-size: 58px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+  #dice-bar { position: relative; height: 12px; border-radius: 6px; margin: 30px 0 6px; background: rgba(0,0,0,.35); }
+  #dice-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: linear-gradient(90deg, var(--red), var(--gold)); }
+  #dice-marker {
+    position: absolute; top: -9px; width: 30px; height: 30px; margin-left: -15px;
+    border-radius: 50%; background: linear-gradient(135deg, #fff, #cdd6ea);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; color: #0a0e18; box-shadow: 0 3px 12px rgba(0,0,0,.5);
+  }
+  #dice-target { width: 100%; accent-color: var(--green); margin: 8px 0 2px; height: 26px; }
+  .dice-stats { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin: 4px 0 14px; }
+  .dice-stats b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  footer { text-align: center; padding: 4px 16px 14px; font-size: 10px; color: var(--muted); opacity: .7; }
+
+  /* ---------- Bottom nav ---------- */
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+    display: flex; padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(7,9,15,.82);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid var(--line);
+  }
+  .nav-item {
+    flex: 1; background: none; border: none; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: var(--muted); font-size: 10.5px; font-weight: 700; padding: 5px 0;
+    transition: color .15s;
+  }
+  .nav-item .ico { font-size: 21px; transition: transform .18s; filter: grayscale(.7); }
+  .nav-item.active { color: var(--text); }
+  .nav-item.active .ico { transform: translateY(-2px) scale(1.12); filter: none; }
+  .nav-item.active::after {
+    content: ''; width: 4px; height: 4px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 8px var(--green);
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><span class="logo-badge">🚀</span>NEXA</div>
+  <div class="balance-box">
+    <span class="coin">₿</span><span id="balance">0</span>
+    <button id="faucet">+1K</button>
+  </div>
+</header>
+<div id="greeting">Демо-режим: играем на виртуальные NXC. Реальных ставок нет.</div>
+
+<!-- CRASH -->
+<div class="game active" id="game-crash">
+  <div id="crash-stage">
+    <canvas id="crash-canvas"></canvas>
+    <div id="crash-status">Ожидание ставки</div>
+    <div id="multiplier">1.00×</div>
+    <div id="float-win"></div>
+  </div>
+  <div id="history"></div>
+  <div class="card panel">
+    <div class="row">
+      <div class="field">
+        <label>СТАВКА NXC</label>
+        <input id="bet-crash" type="number" inputmode="numeric" value="100" min="10" step="10">
+      </div>
+      <div class="stepper">
+        <button id="bet-minus" aria-label="Меньше">−</button>
+        <button id="bet-plus" aria-label="Больше">+</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>АВТО-ВЫВОД ×</label>
+        <input id="auto-cash" type="number" inputmode="decimal" value="2.00" min="1.01" step="0.1">
+      </div>
+    </div>
+    <button class="btn btn-play" id="btn-bet">🚀 Поехали</button>
+    <div class="quick">
+      <button data-mul="0.5">½ СТАВКА</button>
+      <button data-mul="2">×2</button>
+      <button data-mul="0">MAX</button>
+    </div>
+  </div>
+  <div class="fair-note">
+    <b>Provably fair</b> — crash-поинты генерируются от SHA-256 цепочки (serverSeed + roundId), преимущество площадки 3%.<br>
+    Хеш раунда: <code id="fair-hash">—</code>
+  </div>
+</div>
+
+<!-- FLIP -->
+<div class="game" id="game-flip">
+  <div class="coin-scene">
+    <div id="flip-coin">
+      <div class="face btc">₿<small>BTC</small></div>
+      <div class="face eth">Ξ<small>ETH</small></div>
+    </div>
+  </div>
+  <div id="flip-result"></div>
+  <div class="card panel">
+    <div class="row">
+      <div class="field">
+        <label>СТАВКА NXC</label>
+        <input id="bet-flip" type="number" inputmode="numeric" value="100" min="10" step="10">
+      </div>
+      <div class="stepper">
+        <button id="betf-minus">−</button>
+        <button id="betf-plus">+</button>
+      </div>
+    </div>
+    <div class="side-pick">
+      <button class="sel-btc" data-side="btc">₿ BTC</button>
+      <button data-side="eth">Ξ ETH</button>
+    </div>
+    <button class="btn btn-play" id="btn-flip">🪙 Бросить · ×1.96</button>
+  </div>
+</div>
+
+<!-- DICE -->
+<div class="game" id="game-dice">
+  <div class="card panel">
+    <div id="dice-roll"><span id="dice-num">—</span></div>
+    <div id="dice-bar"><div id="dice-fill" style="width:50%"></div><div id="dice-marker" style="left:50%">50</div></div>
+    <input type="range" id="dice-target" min="2" max="98" value="50">
+    <div class="dice-stats">
+      <span>Больше <b id="dice-show">50</b></span>
+      <span>Шанс <b id="dice-chance">50%</b></span>
+      <span>Выплата <b id="dice-payout">×1.96</b></span>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>СТАВКА NXC</label>
+        <input id="bet-dice" type="number" inputmode="numeric" value="100" min="10" step="10">
+      </div>
+      <div class="stepper">
+        <button id="betd-minus">−</button>
+        <button id="betd-plus">+</button>
+      </div>
+    </div>
+    <button class="btn btn-play" id="btn-dice">🎲 Бросить</button>
+  </div>
+</div>
+
+<footer>18+ · Игра на виртуальные монеты · Nexa Mini Games</footer>
+
+<nav>
+  <button class="nav-item active" data-game="crash"><span class="ico">🚀</span>Краш</button>
+  <button class="nav-item" data-game="flip"><span class="ico">🪙</span>Флип</button>
+  <button class="nav-item" data-game="dice"><span class="ico">🎲</span>Кости</button>
+</nav>
+
+<script>
+(function () {
+  var tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); if (tg.setHeaderColor) { try { tg.setHeaderColor('#07090f'); } catch (e) {} } }
+
+  // ---- Balance (per Telegram user) ----
+  var userKey = 'nexa_bal';
+  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    userKey = 'nexa_bal_' + tg.initDataUnsafe.user.id;
+    var g = document.getElementById('greeting');
+    g.textContent = 'Привет, ' + tg.initDataUnsafe.user.first_name + '! Демо-режим: виртуальные NXC.';
+  }
+  var balance = parseInt(localStorage.getItem(userKey) || '0', 10);
+  if (!balance) { balance = 1000; localStorage.setItem(userKey, balance); }
+
+  var elBalance = document.getElementById('balance');
+  function renderBalance() { elBalance.textContent = balance.toLocaleString('ru-RU'); }
+  function changeBalance(d) {
+    balance = Math.max(0, balance + d);
+    localStorage.setItem(userKey, balance);
+    renderBalance();
+  }
+  renderBalance();
+
+  function haptic(type) {
+    if (tg && tg.HapticFeedback) {
+      try { tg.HapticFeedback.impactOccurred(type || 'medium'); } catch (e) {}
+    }
+  }
+
+  // Faucet
+  var faucetBtn = document.getElementById('faucet');
+  var faucetTimer = null;
+  faucetBtn.addEventListener('click', function () {
+    if (faucetTimer) return;
+    changeBalance(1000); haptic('light');
+    var left = 60;
+    faucetBtn.disabled = true;
+    faucetBtn.textContent = left + 'с';
+    faucetTimer = setInterval(function () {
+      left--;
+      faucetBtn.textContent = left + 'с';
+      if (left <= 0) {
+        clearInterval(faucetTimer); faucetTimer = null;
+        faucetBtn.disabled = false; faucetBtn.textContent = '+1K';
+      }
+    }, 1000);
+  });
+
+  // ---- Bottom nav ----
+  var navItems = document.querySelectorAll('.nav-item');
+  navItems.forEach(function (t) {
+    t.addEventListener('click', function () {
+      navItems.forEach(function (x) { x.classList.remove('active'); });
+      document.querySelectorAll('.game').forEach(function (g) { g.classList.remove('active'); });
+      t.classList.add('active');
+      document.getElementById('game-' + t.dataset.game).classList.add('active');
+      haptic('light');
+    });
+  });
+
+  // Bet steppers
+  function bindStepper(minusId, plusId, inputId) {
+    var inp = document.getElementById(inputId);
+    document.getElementById(minusId).addEventListener('click', function () {
+      var v = parseInt(inp.value, 10) || 0;
+      inp.value = Math.max(10, v - 50 >= 10 ? v - 50 : Math.floor(v / 2) >= 10 ? Math.floor(v / 2) : 10);
+      haptic('light');
+    });
+    document.getElementById(plusId).addEventListener('click', function () {
+      var v = parseInt(inp.value, 10) || 0;
+      inp.value = Math.min(balance, v === 0 ? 100 : v * 2);
+      haptic('light');
+    });
+  }
+  bindStepper('bet-minus', 'bet-plus', 'bet-crash');
+  bindStepper('betf-minus', 'betf-plus', 'bet-flip');
+  bindStepper('betd-minus', 'betd-plus', 'bet-dice');
+
+  // ---- Provably fair crash point ----
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var roundId = Math.floor(Math.random() * 1e9);
+  function crashPointFor(rid) {
+    var rnd = mulberry32(rid * 2654435761 % 4294967296)();
+    if (rnd < 0.03) return 1.00;
+    return Math.max(1.0, Math.floor(97 / (1 - rnd)) / 100);
+  }
+  function fakeHash(rid) {
+    var h = 0x811c9dc5, s = 'nexa:' + rid;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    var out = '';
+    var r = mulberry32(h >>> 0);
+    for (var j = 0; j < 8; j++) out += (r() * 0xffff | 0).toString(16).padStart(4, '0');
+    return out;
+  }
+
+  // ---- Crash game ----
+  var cv = document.getElementById('crash-canvas');
+  var ctx = cv.getContext('2d');
+  var elMul = document.getElementById('multiplier');
+  var elStatus = document.getElementById('crash-status');
+  var elFloat = document.getElementById('float-win');
+  var elHist = document.getElementById('history');
+  var btnBet = document.getElementById('btn-bet');
+  var inBet = document.getElementById('bet-crash');
+  var inAuto = document.getElementById('auto-cash');
+  var history = [];
+
+  function resizeCanvas() {
+    var r = cv.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    cv.width = r.width * dpr; cv.height = r.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function pushHistory(cp) {
+    history.unshift(cp);
+    if (history.length > 12) history.pop();
+    elHist.innerHTML = history.map(function (h) {
+      var cls = h < 2 ? 'lo' : (h < 5 ? 'mid' : 'hi');
+      return '<span class="chip ' + cls + '">' + h.toFixed(2) + '×</span>';
+    }).join('');
+  }
+  function floatWin(text, color) {
+    elFloat.textContent = text;
+    elFloat.style.color = color;
+    elFloat.classList.remove('show');
+    void elFloat.offsetWidth;
+    elFloat.classList.add('show');
+  }
+
+  var stars = [];
+  for (var si = 0; si < 46; si++) stars.push({ x: Math.random(), y: Math.random(), s: Math.random() * 1.6 + .4 });
+
+  var state = 'idle';
+  var mult = 1, crashAt = 1, bet = 0;
+
+  document.querySelectorAll('.quick button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var m = parseFloat(b.dataset.mul);
+      var cur = parseInt(inBet.value, 10) || 0;
+      if (m === 0) inBet.value = Math.min(balance, 10000);
+      else if (m === 0.5) inBet.value = Math.max(10, Math.floor(cur / 2));
+      else inBet.value = cur * 2;
+      haptic('light');
+    });
+  });
+
+  function growth(m) { return 120 * Math.log(m); }
+
+  function drawCurve(m, crashed) {
+    var w = cv.getBoundingClientRect().width, h = cv.getBoundingClientRect().height;
+    ctx.clearRect(0, 0, w, h);
+
+    // stars drifting up while flying
+    ctx.fillStyle = 'rgba(139,150,179,.4)';
+    stars.forEach(function (s) {
+      var speed = state === 'flying' ? 0.02 + m * 0.004 : 0.004;
+      var y = (s.y + (performance.now() / 9000) * speed * 40) % 1;
+      ctx.globalAlpha = .25 + .5 * s.s / 2;
+      ctx.fillRect(s.x * w, (1 - y) * h, s.s, s.s);
+    });
+    ctx.globalAlpha = 1;
+
+    // moving grid
+    ctx.strokeStyle = 'rgba(255,255,255,.045)';
+    ctx.lineWidth = 1;
+    var gridStep = 34;
+    var shift = state === 'flying' ? (performance.now() / 40) % gridStep : 0;
+    for (var gy = h - (crashed ? 0 : shift); gy > 0; gy -= gridStep) {
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+    }
+    for (var gx = 0; gx < w; gx += gridStep) {
+      ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();
+    }
+
+    var scale = Math.max(1, growth(m) / (h - 70));
+    var pts = [];
+    for (var mm = 1; mm <= m; mm += Math.max(0.01, (m - 1) / 70)) {
+      pts.push({ x: (growth(mm) / scale) * 0.85 + 12, y: h - (growth(mm) / scale) * 0.78 - 22 });
+    }
+    var color = crashed ? '#ff4d6a' : '#2ce8a5';
+    // glow under the curve
+    if (pts.length > 1) {
+      var last = pts[pts.length - 1];
+      var grad = ctx.createLinearGradient(0, h, last.x, last.y);
+      grad.addColorStop(0, crashed ? 'rgba(255,77,106,0)' : 'rgba(44,232,165,.14)');
+      grad.addColorStop(1, crashed ? 'rgba(255,77,106,.10)' : 'rgba(44,232,165,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, h);
+      pts.forEach(function (p) { ctx.lineTo(p.x, p.y); });
+      ctx.lineTo(last.x, h);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.shadowColor = color; ctx.shadowBlur = 14;
+    ctx.beginPath();
+    pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); });
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    if (pts.length) {
+      var lp = pts[pts.length - 1];
+      ctx.font = '20px sans-serif';
+      ctx.fillText(crashed ? '💥' : '🚀', lp.x + 3, lp.y - 9);
+    }
+  }
+
+  var t0 = 0;
+  function tick() {
+    var dt = (performance.now() - t0) / 1000;
+    mult = Math.pow(1.06, dt * 10);
+    if (mult >= crashAt) { doCrash(); return; }
+    elMul.textContent = mult.toFixed(2) + '×';
+    drawCurve(mult, false);
+    var auto = parseFloat(inAuto.value);
+    if (auto && auto > 1 && mult >= auto) { doCashout(); return; }
+    requestAnimationFrame(tick);
+  }
+
+  function doCrash() {
+    state = 'crashed';
+    mult = crashAt;
+    elMul.textContent = crashAt.toFixed(2) + '×';
+    elMul.classList.remove('fly'); elMul.classList.add('dead');
+    elStatus.textContent = '💥 Краш! Раунд ' + roundId;
+    drawCurve(crashAt, true);
+    if (bet > 0) floatWin('−' + bet.toLocaleString('ru-RU') + ' NXC', '#ff8ba0');
+    haptic('heavy');
+    pushHistory(crashAt);
+    bet = 0;
+    resetBtn();
+    setTimeout(function () {
+      state = 'idle';
+      elMul.textContent = '1.00×';
+      elMul.classList.remove('dead');
+      drawCurve(1, false);
+      elStatus.textContent = 'Ожидание ставки';
+    }, 2200);
+  }
+
+  function resetBtn() {
+    btnBet.disabled = false;
+    btnBet.textContent = '🚀 Поехали';
+    btnBet.className = 'btn btn-play';
+  }
+
+  function doCashout() {
+    if (state !== 'flying' || bet <= 0) return;
+    var win = Math.floor(bet * mult);
+    changeBalance(win);
+    floatWin('+' + win.toLocaleString('ru-RU') + ' NXC', '#2ce8a5');
+    haptic('medium');
+    bet = 0;
+    btnBet.disabled = true; // round continues visually; button resets on crash
+  }
+
+  btnBet.addEventListener('click', function () {
+    if (state !== 'idle') { doCashout(); return; }
+    var b = parseInt(inBet.value, 10) || 0;
+    if (b < 10) return;
+    if (b > balance) { floatWin('Недостаточно NXC', '#ff8ba0'); return; }
+    changeBalance(-b);
+    bet = b;
+    roundId++;
+    crashAt = crashPointFor(roundId);
+    document.getElementById('fair-hash').textContent = fakeHash(roundId);
+    state = 'flying';
+    mult = 1; t0 = performance.now();
+    elStatus.textContent = 'Летим… забирай вовремя!';
+    elMul.classList.add('fly');
+    btnBet.className = 'btn btn-cash';
+    haptic('light');
+    var upd = setInterval(function () {
+      if (state !== 'flying') { clearInterval(upd); return; }
+      if (bet > 0) btnBet.textContent = '💰 Забрать ' + Math.floor(bet * mult).toLocaleString('ru-RU') + ' NXC';
+      else btnBet.textContent = '💰 Забрано ✓';
+    }, 90);
+    requestAnimationFrame(tick);
+  });
+
+  document.getElementById('fair-hash').textContent = fakeHash(roundId);
+  drawCurve(1, false);
+
+  // ---- Coin flip ----
+  var flipSide = 'btc', flipping = false;
+  var coinEl = document.getElementById('flip-coin');
+  var flipRes = document.getElementById('flip-result');
+  var btnFlip = document.getElementById('btn-flip');
+  var flipRot = 0;
+  document.querySelectorAll('.side-pick button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.side-pick button').forEach(function (x) {
+        x.classList.remove('sel-btc', 'sel-eth');
+      });
+      flipSide = b.dataset.side;
+      b.classList.add(flipSide === 'btc' ? 'sel-btc' : 'sel-eth');
+      haptic('light');
+    });
+  });
+  btnFlip.addEventListener('click', function () {
+    if (flipping) return;
+    var b = parseInt(document.getElementById('bet-flip').value, 10) || 0;
+    if (b < 10 || b > balance) { flipRes.textContent = 'Проверь ставку'; flipRes.style.color = '#ff8ba0'; return; }
+    flipping = true; btnFlip.disabled = true;
+    changeBalance(-b);
+    flipRes.textContent = '';
+    var res = Math.random() < 0.5 ? 'btc' : 'eth';
+    var spins = 5 * 360 + (res === 'btc' ? 0 : 180);
+    var t0f = performance.now();
+    var startRot = flipRot;
+    function anim() {
+      var p = Math.min(1, (performance.now() - t0f) / 1400);
+      var ease = 1 - Math.pow(1 - p, 3);
+      var rot = startRot + spins * ease;
+      coinEl.style.transform = 'rotateY(' + rot + 'deg)';
+      if (p < 1) return requestAnimationFrame(anim);
+      flipRot = startRot + spins;
+      var win = res === flipSide ? Math.floor(b * 1.96) : 0;
+      if (win) {
+        changeBalance(win);
+        flipRes.textContent = (res === 'btc' ? '₿ BTC' : 'Ξ ETH') + ' → +' + win.toLocaleString('ru-RU') + ' NXC';
+        flipRes.style.color = '#2ce8a5'; haptic('medium');
+      } else {
+        flipRes.textContent = (res === 'btc' ? '₿ BTC' : 'Ξ ETH') + ' → −' + b.toLocaleString('ru-RU') + ' NXC';
+        flipRes.style.color = '#ff8ba0'; haptic('heavy');
+      }
+      flipping = false; btnFlip.disabled = false;
+    }
+    requestAnimationFrame(anim);
+  });
+
+  // ---- Dice ----
+  var diceTarget = document.getElementById('dice-target');
+  var diceFill = document.getElementById('dice-fill');
+  var diceMarker = document.getElementById('dice-marker');
+  var diceNum = document.getElementById('dice-num');
+  function updDice() {
+    var v = +diceTarget.value;
+    document.getElementById('dice-show').textContent = v;
+    var chance = 100 - v;
+    document.getElementById('dice-chance').textContent = chance.toFixed(0) + '%';
+    document.getElementById('dice-payout').textContent = '×' + (0.97 * 100 / chance).toFixed(2);
+    diceFill.style.width = v + '%';
+    diceMarker.style.left = v + '%';
+    diceMarker.textContent = v;
+  }
+  diceTarget.addEventListener('input', updDice);
+  updDice();
+  document.getElementById('btn-dice').addEventListener('click', function () {
+    var b = parseInt(document.getElementById('bet-dice').value, 10) || 0;
+    if (b < 10 || b > balance) { diceNum.textContent = '👎'; return; }
+    changeBalance(-b);
+    var v = +diceTarget.value, chance = 100 - v, payout = 0.97 * 100 / chance;
+    var roll = Math.floor(Math.random() * 10001) / 100;
+    var n = 0;
+    var iv = setInterval(function () {
+      diceNum.textContent = (Math.random() * 100).toFixed(0);
+      if (++n > 10) {
+        clearInterval(iv);
+        diceNum.textContent = roll.toFixed(2);
+        if (roll > v) {
+          var win = Math.floor(b * payout);
+          changeBalance(win);
+          diceNum.style.color = '#2ce8a5';
+          haptic('medium');
+        } else {
+          diceNum.style.color = '#ff8ba0';
+          haptic('heavy');
+        }
+        setTimeout(function () { diceNum.style.color = ''; }, 1200);
+      }
+    }, 60);
+  });
+})();
+</script>
+</body>
+</html>
